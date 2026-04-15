@@ -1,0 +1,20 @@
+{
+  "mcpServers": {
+    "jira": {
+      "description": "Atlassian Jira Cloud MCP Server — reads user stories and issue details",
+      "transport": "stdio",
+      "command": "npx",
+      "args": ["-y", "@aashari/mcp-server-atlassian-jira"],
+      "env": {
+        "ATLASSIAN_SITE_NAME": "${ATLASSIAN_SITE_NAME}",
+        "ATLASSIAN_USER_EMAIL": "${ATLASSIAN_USER_EMAIL}",
+        "ATLASSIAN_API_TOKEN": "${ATLASSIAN_API_TOKEN}"
+      }
+    },
+    "virtualize": {
+      "description": "Parasoft Virtualize MCP Server — creates and deploys virtual services",
+      "transport": "sse",
+      "url": "${PARASOFT_VIRTUALIZE_MCP_URL}"
+    }
+  }
+}

@@ -1,0 +1,7 @@
+# Python dependencies for the VirtualizeMCPDemo AI agent
+
+# Anthropic Claude SDK — includes MCP client helpers
+anthropic[mcp]>=0.50.0
+
+# MCP Python SDK — client for connecting to stdio and SSE MCP servers
+mcp>=1.23.0
