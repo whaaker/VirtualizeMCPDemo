@@ -1,0 +1,99 @@
+name: Create Virtual Service from Jira Story
+
+# ---------------------------------------------------------------------------
+# Triggered manually — provide the Jira ticket number that contains the
+# virtual service specification and (optionally) override the Virtualize URL.
+# ---------------------------------------------------------------------------
+on:
+  workflow_dispatch:
+    inputs:
+      jira_ticket:
+        description: 'Jira ticket number (e.g., PROJ-123)'
+        required: true
+        type: string
+      virtualize_server_url:
+        description: 'Parasoft Virtualize server URL (overrides secret default)'
+        required: false
+        default: 'http://localhost:9080'
+        type: string
+      dry_run:
+        description: 'Dry run — plan only, do not deploy the virtual service'
+        required: false
+        default: 'false'
+        type: boolean
+
+# Minimal token permissions — this workflow only needs to upload artifacts.
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  create-virtual-service:
+    name: Read Jira Story → Create Virtual Service
+    # -----------------------------------------------------------------------
+    # IMPORTANT: this job must run on the self-hosted runner that has
+    # Parasoft Virtualize (and its MCP Server) running locally.
+    # Register your runner under Settings → Actions → Runners and replace
+    # the label below with any additional labels you assigned to it.
+    # -----------------------------------------------------------------------
+    runs-on: self-hosted
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # -----------------------------------------------------------------------
+      # Python runtime — used by the AI agent script
+      # -----------------------------------------------------------------------
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      # -----------------------------------------------------------------------
+      # Run the AI agent
+      # The agent connects to both MCP servers and orchestrates Claude to:
+      #   1. Read the Jira user story (via Jira MCP Server — cloud)
+      #   2. Extract virtual service requirements from the story
+      #   3. Create and deploy the virtual service (via Virtualize MCP Server — local)
+      # -----------------------------------------------------------------------
+      - name: Run AI Agent
+        env:
+          # --- Anthropic / Claude ---
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+
+          # --- Jira MCP Server (Atlassian Cloud) ---
+          # See docs/setup.md for how to obtain these values.
+          ATLASSIAN_SITE_NAME: ${{ secrets.ATLASSIAN_SITE_NAME }}
+          ATLASSIAN_USER_EMAIL: ${{ secrets.ATLASSIAN_USER_EMAIL }}
+          ATLASSIAN_API_TOKEN: ${{ secrets.ATLASSIAN_API_TOKEN }}
+
+          # --- Parasoft Virtualize MCP Server (local, on the runner) ---
+          # URL of the running Virtualize MCP Server process on this runner.
+          PARASOFT_VIRTUALIZE_MCP_URL: ${{ secrets.PARASOFT_VIRTUALIZE_MCP_URL }}
+          # Standard Virtualize server URL (used by the MCP server internally).
+          PARASOFT_VIRTUALIZE_URL: ${{ inputs.virtualize_server_url }}
+          PARASOFT_VIRTUALIZE_USER: ${{ secrets.PARASOFT_VIRTUALIZE_USER }}
+          PARASOFT_VIRTUALIZE_PASSWORD: ${{ secrets.PARASOFT_VIRTUALIZE_PASSWORD }}
+
+          # --- Workflow inputs ---
+          JIRA_TICKET: ${{ inputs.jira_ticket }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: python scripts/agent.py
+
+      # -----------------------------------------------------------------------
+      # Persist the agent output for review in the Actions UI
+      # -----------------------------------------------------------------------
+      - name: Upload agent output artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-output-${{ github.run_number }}
+          path: |
+            agent-output.json
+            agent-output.log
+          if-no-files-found: ignore
+          retention-days: 30
