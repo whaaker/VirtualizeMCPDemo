@@ -57,7 +57,7 @@ jobs:
             $ticket = if ($match.Success) { $match.Value } else { "" }
           }
           if (-not $ticket) {
-            Write-Host "No Jira ticket found in commit message — skipping."
+            Write-Host "No Jira ticket found in commit message - skipping."
             "skip=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           } else {
             Write-Host "Resolved ticket: $ticket"
