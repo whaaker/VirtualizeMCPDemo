@@ -3,7 +3,7 @@
 A showcase of how to use **GitHub Actions** (self-hosted runner) with AI
 automation to read a Jira user story and automatically create and deploy a
 virtual service on a locally-running **Parasoft Virtualize** server — all
-orchestrated by Claude via the **Model Context Protocol (MCP)**.
+orchestrated by **GitHub Copilot CLI** via the **Model Context Protocol (MCP)**.
 
 ---
 
@@ -15,12 +15,12 @@ orchestrated by Claude via the **Model Context Protocol (MCP)**.
 │                   Parasoft Virtualize)                          │
 │                                                                 │
 │  ┌────────────────────────────────────────────────────────┐    │
-│  │  scripts/agent.py  (Claude + MCP agentic loop)         │    │
+│  │  GitHub Copilot CLI  (programmatic / --no-ask-user)    │    │
 │  │                                                         │    │
 │  │   ┌──────────────────┐    ┌──────────────────────────┐ │    │
 │  │   │  Jira MCP Server │    │  Virtualize MCP Server   │ │    │
-│  │   │  (cloud / stdio) │    │  (local SSE endpoint)    │ │    │
-│  │   │                  │    │                          │ │    │
+│  │   │  (Atlassian      │    │  (local HTTP endpoint)   │ │    │
+│  │   │   Remote MCP)    │    │                          │ │    │
 │  │   │  • get_issue     │    │  • list_virtual_services │ │    │
 │  │   │  • search_issues │    │  • create_virtual_service│ │    │
 │  │   │  • …             │    │  • deploy / start / stop │ │    │
@@ -30,11 +30,11 @@ orchestrated by Claude via the **Model Context Protocol (MCP)**.
 ```
 
 1. You trigger the workflow (`workflow_dispatch`) with a Jira ticket number.
-2. Claude reads the story via the **Jira MCP Server** (Atlassian Cloud).
-3. Claude extracts the API specification from the story and calls the
+2. Copilot CLI reads the story via the **Atlassian Remote MCP Server** (`mcp.atlassian.com`).
+3. Copilot extracts the API specification from the story and calls the
    **Parasoft Virtualize MCP Server** (running locally on the runner) to
    create and deploy the virtual service.
-4. A summary is uploaded as a workflow artifact.
+4. The full session transcript is uploaded as a workflow artifact.
 
 ---
 
@@ -45,14 +45,10 @@ orchestrated by Claude via the **Model Context Protocol (MCP)**.
 ├── .github/
 │   └── workflows/
 │       └── create-virtual-service.yml   # GitHub Actions workflow
-├── scripts/
-│   └── agent.py                         # AI agent orchestration script
 ├── docs/
 │   ├── setup.md                         # Full setup guide
 │   └── jira-story-format.md             # Required Jira story structure
-├── mcp.json                             # MCP server connection configuration
-├── requirements.txt                     # Python dependencies
-└── .env.example                         # Environment variable template
+└── mcp.json                             # MCP server config reference (documentation)
 ```
 
 ---
@@ -65,10 +61,9 @@ orchestrated by Claude via the **Model Context Protocol (MCP)**.
 |---|---|
 | Self-hosted GitHub Actions runner | Must be on the same machine as Parasoft Virtualize |
 | Parasoft Virtualize | With the MCP Server enabled and running |
-| Anthropic API key | [console.anthropic.com](https://console.anthropic.com) |
+| GitHub Copilot Business subscription | Required to use Copilot CLI |
 | Atlassian Jira Cloud | API token from [id.atlassian.com](https://id.atlassian.com/manage-profile/security/api-tokens) |
-| Python 3.11+ | Installed on the runner |
-| Node.js 20+ | Required to run the Jira MCP Server via `npx` |
+| Node.js 20+ | Required to install Copilot CLI via npm |
 
 ### 2 — Configure GitHub Secrets
 
@@ -76,20 +71,17 @@ Add the following secrets in **Settings → Secrets and variables → Actions**:
 
 | Secret | Description |
 |---|---|
-| `ANTHROPIC_API_KEY` | Claude API key |
-| `ATLASSIAN_SITE_NAME` | Jira subdomain (e.g. `acme` for `acme.atlassian.net`) |
-| `ATLASSIAN_USER_EMAIL` | Your Atlassian account email |
-| `ATLASSIAN_API_TOKEN` | Atlassian API token |
-| `PARASOFT_VIRTUALIZE_MCP_URL` | URL of the Virtualize MCP Server SSE endpoint (e.g. `http://localhost:4000/sse`) |
-| `PARASOFT_VIRTUALIZE_URL` | Base URL of the Virtualize server (e.g. `http://localhost:9080`) |
-| `PARASOFT_VIRTUALIZE_USER` | Virtualize username |
-| `PARASOFT_VIRTUALIZE_PASSWORD` | Virtualize password |
+| `COPILOT_PAT` | Fine-grained PAT with **Copilot Requests** permission |
+| `ATLASSIAN_BASIC_AUTH` | `base64(your-email@example.com:your-api-token)` — see setup guide |
+| `VIRTUALIZE_AUTH_TOKEN` | `base64(virtualize-user:virtualize-password)` |
+| `VIRTUALIZE_MCP_URL` | URL of the Virtualize MCP Server HTTP endpoint |
 
 ### 3 — Configure MCP servers
 
-Edit **`mcp.json`** if you need to change:
-- The Jira MCP server package or startup arguments
-- The Virtualize MCP server transport type (`stdio` vs `sse`) or URL
+The workflow writes `~/.copilot/mcp-config.json` on the runner automatically
+from your secrets. See **`mcp.json`** in the repo root for the reference
+structure, and **[docs/setup.md](docs/setup.md)** for details on enabling
+API token auth in Atlassian Rovo and the Virtualize MCP Server.
 
 ### 4 — Write your Jira story
 
@@ -105,12 +97,10 @@ enter your Jira ticket number, and click **Run workflow**.
 
 ## Customisation
 
-- **Different LLM**: change `CLAUDE_MODEL` in `scripts/agent.py`.
-- **Different Jira MCP server**: update the `jira` entry in `mcp.json`.
-- **Virtualize MCP server over stdio**: change `transport` to `"stdio"` and
-  add `command`/`args` in `mcp.json`.
-- **Additional workflow triggers** (e.g. on issue label): extend the `on:`
-  block in `.github/workflows/create-virtual-service.yml`.
+- **Change the prompt**: edit the `PROMPT` variable in the `Run Copilot Agent` step of the workflow.
+- **Restrict MCP tools**: replace `--allow-tool='mcp(*)'` with `--allow-tool='mcp(jira-remote:get_issue, virtualize:*)'` or similar.
+- **Different Virtualize MCP URL**: update the `VIRTUALIZE_MCP_URL` secret.
+- **Additional workflow triggers** (e.g. on issue label): extend the `on:` block in the workflow file.
 
 ---
 

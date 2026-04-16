@@ -1,8 +1,8 @@
 name: Create Virtual Service from Jira Story
 
 # ---------------------------------------------------------------------------
-# Triggered manually — provide the Jira ticket number that contains the
-# virtual service specification and (optionally) override the Virtualize URL.
+# Triggered manually with a Jira ticket number, or automatically on push
+# when the commit message contains a Jira-style ticket ID (e.g. PROJ-123).
 # ---------------------------------------------------------------------------
 on:
   workflow_dispatch:
@@ -11,16 +11,14 @@ on:
         description: 'Jira ticket number (e.g., PROJ-123)'
         required: true
         type: string
-      virtualize_server_url:
-        description: 'Parasoft Virtualize server URL (overrides secret default)'
-        required: false
-        default: 'http://localhost:9080'
-        type: string
       dry_run:
         description: 'Dry run — plan only, do not deploy the virtual service'
         required: false
-        default: 'false'
+        default: false
         type: boolean
+  push:
+    branches:
+      - main
 
 # Minimal token permissions — this workflow only needs to upload artifacts.
 permissions:
@@ -43,57 +41,121 @@ jobs:
         uses: actions/checkout@v4
 
       # -----------------------------------------------------------------------
-      # Python runtime — used by the AI agent script
+      # Resolve the Jira ticket — from workflow_dispatch input, or by
+      # extracting a Jira-style key (e.g. PROJ-123) from the commit message.
+      # The step exits early (skipping the rest of the job) if no ticket is
+      # found on a push event.
       # -----------------------------------------------------------------------
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
+      - name: Resolve Jira ticket
+        id: resolve_ticket
+        run: |
+          if [ -n "${{ inputs.jira_ticket }}" ]; then
+            TICKET="${{ inputs.jira_ticket }}"
+          else
+            TICKET=$(echo "${{ github.event.head_commit.message }}" | grep -oE '\b[A-Z]{2,10}-[0-9]+\b' | head -1)
+          fi
+          if [ -z "$TICKET" ]; then
+            echo "No Jira ticket found in commit message — skipping."
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "ticket=$TICKET" >> $GITHUB_OUTPUT
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
 
-      - name: Install Python dependencies
-        run: pip install -r requirements.txt
+      # -----------------------------------------------------------------------
+      # Install GitHub Copilot CLI
+      # -----------------------------------------------------------------------
+      - name: Set up Node.js
+        if: steps.resolve_ticket.outputs.skip != 'true'
+        uses: actions/setup-node@v4
+
+      - name: Install Copilot CLI
+        if: steps.resolve_ticket.outputs.skip != 'true'
+        run: npm install -g @github/copilot
 
       # -----------------------------------------------------------------------
-      # Run the AI agent
-      # The agent connects to both MCP servers and orchestrates Claude to:
-      #   1. Read the Jira user story (via Jira MCP Server — cloud)
-      #   2. Extract virtual service requirements from the story
-      #   3. Create and deploy the virtual service (via Virtualize MCP Server — local)
+      # Write the MCP server configuration for Copilot CLI.
+      # Copilot CLI reads MCP servers from ~/.copilot/mcp-config.json.
+      # Both secrets are pre-computed base64(user:token) strings.
       # -----------------------------------------------------------------------
-      - name: Run AI Agent
+      - name: Configure MCP servers
+        if: steps.resolve_ticket.outputs.skip != 'true'
         env:
-          # --- Anthropic / Claude ---
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-
-          # --- Jira MCP Server (Atlassian Cloud) ---
-          # See docs/setup.md for how to obtain these values.
-          ATLASSIAN_SITE_NAME: ${{ secrets.ATLASSIAN_SITE_NAME }}
-          ATLASSIAN_USER_EMAIL: ${{ secrets.ATLASSIAN_USER_EMAIL }}
-          ATLASSIAN_API_TOKEN: ${{ secrets.ATLASSIAN_API_TOKEN }}
-
-          # --- Parasoft Virtualize MCP Server (local, on the runner) ---
-          # URL of the running Virtualize MCP Server process on this runner.
-          PARASOFT_VIRTUALIZE_MCP_URL: ${{ secrets.PARASOFT_VIRTUALIZE_MCP_URL }}
-          # Standard Virtualize server URL (used by the MCP server internally).
-          PARASOFT_VIRTUALIZE_URL: ${{ inputs.virtualize_server_url }}
-          PARASOFT_VIRTUALIZE_USER: ${{ secrets.PARASOFT_VIRTUALIZE_USER }}
-          PARASOFT_VIRTUALIZE_PASSWORD: ${{ secrets.PARASOFT_VIRTUALIZE_PASSWORD }}
-
-          # --- Workflow inputs ---
-          JIRA_TICKET: ${{ inputs.jira_ticket }}
-          DRY_RUN: ${{ inputs.dry_run }}
-        run: python scripts/agent.py
+          ATLASSIAN_BASIC_AUTH: ${{ secrets.ATLASSIAN_BASIC_AUTH }}
+          VIRTUALIZE_AUTH_TOKEN: ${{ secrets.VIRTUALIZE_AUTH_TOKEN }}
+          VIRTUALIZE_MCP_URL: ${{ secrets.VIRTUALIZE_MCP_URL }}
+        shell: bash
+        run: |
+          mkdir -p ~/.copilot
+          cat > ~/.copilot/mcp-config.json <<EOF
+          {
+            "mcpServers": {
+              "jira-remote": {
+                "type": "http",
+                "url": "https://mcp.atlassian.com/v1/mcp",
+                "headers": {
+                  "Authorization": "Basic ${ATLASSIAN_BASIC_AUTH}"
+                },
+                "tools": ["*"]
+              },
+              "virtualize": {
+                "type": "http",
+                "url": "${VIRTUALIZE_MCP_URL}",
+                "headers": {
+                  "Authorization": "Basic ${VIRTUALIZE_AUTH_TOKEN}"
+                },
+                "tools": ["*"]
+              }
+            }
+          }
+          EOF
 
       # -----------------------------------------------------------------------
-      # Persist the agent output for review in the Actions UI
+      # Run the Copilot CLI agent in programmatic mode.
+      # --allow-tool='mcp(*)' permits all MCP tool calls.
+      # --no-ask-user prevents interactive prompts in CI.
+      # -s (silent) suppresses session metadata; clean output goes to the log.
+      # --share writes the full session transcript to agent-output.md.
+      # -----------------------------------------------------------------------
+      - name: Run Copilot Agent
+        if: steps.resolve_ticket.outputs.skip != 'true'
+        env:
+          COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_PAT }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          PROMPT="Jira ticket: ${{ steps.resolve_ticket.outputs.ticket }}. Dry run: ${DRY_RUN}.
+
+          You are an expert DevOps automation engineer with deep knowledge of both
+          Atlassian Jira and Parasoft Virtualize.
+
+          Your task:
+          1. Use the jira-remote MCP tools to read the Jira user story for the ticket above.
+          2. Analyze the story to extract all virtual service requirements: endpoint path,
+             HTTP method(s), request/response schema, port, and any behavior rules.
+          3. Use the virtualize MCP tools to create and deploy a virtual service that
+             satisfies those requirements.
+          4. Report a concise summary of what was created (service name, endpoint, port).
+
+          Guidelines:
+          - If information is missing from the Jira story, make reasonable defaults and
+            note them in your final summary.
+          - If Dry run is true, describe what you would create but do not call any
+            Virtualize write or deploy tools.
+          - Always confirm successful deployment before finishing."
+
+          copilot -p "$PROMPT" \
+            --allow-tool='mcp(*)' \
+            --no-ask-user \
+            --share='./agent-output.md'
+
+      # -----------------------------------------------------------------------
+      # Persist the Copilot session transcript as a workflow artifact.
       # -----------------------------------------------------------------------
       - name: Upload agent output artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: agent-output-${{ github.run_number }}
-          path: |
-            agent-output.json
-            agent-output.log
+          path: agent-output.md
           if-no-files-found: ignore
           retention-days: 30

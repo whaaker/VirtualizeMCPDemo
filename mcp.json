@@ -1,20 +1,21 @@
 {
+  "_comment": "Reference configuration for the two MCP servers used by this workflow. The GitHub Actions workflow writes this config to ~/.copilot/mcp-config.json on the self-hosted runner at runtime, substituting secrets. This file is NOT read directly by any tooling — it is documentation only.",
   "mcpServers": {
-    "jira": {
-      "description": "Atlassian Jira Cloud MCP Server — reads user stories and issue details",
-      "transport": "stdio",
-      "command": "npx",
-      "args": ["-y", "@aashari/mcp-server-atlassian-jira"],
-      "env": {
-        "ATLASSIAN_SITE_NAME": "${ATLASSIAN_SITE_NAME}",
-        "ATLASSIAN_USER_EMAIL": "${ATLASSIAN_USER_EMAIL}",
-        "ATLASSIAN_API_TOKEN": "${ATLASSIAN_API_TOKEN}"
-      }
+    "jira-remote": {
+      "type": "http",
+      "url": "https://mcp.atlassian.com/v1/mcp",
+      "headers": {
+        "Authorization": "Basic ${ATLASSIAN_BASIC_AUTH}"
+      },
+      "tools": ["*"]
     },
     "virtualize": {
-      "description": "Parasoft Virtualize MCP Server — creates and deploys virtual services",
-      "transport": "sse",
-      "url": "${PARASOFT_VIRTUALIZE_MCP_URL}"
+      "type": "http",
+      "url": "${VIRTUALIZE_MCP_URL}",
+      "headers": {
+        "Authorization": "Basic ${VIRTUALIZE_AUTH_TOKEN}"
+      },
+      "tools": ["*"]
     }
   }
 }
