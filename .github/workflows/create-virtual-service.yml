@@ -150,7 +150,15 @@ jobs:
           high confidence name cannot be inferred from the Jira story, use the Jira ticket number
           as a reasonable default. If that name is already in use on the Virtualize server,
           choose a unique name (e.g., by appending -1, -2, etc. to the virtual service name so that
-          it is unqieu and will not conflict with existing virtual services).
+          it is unique and will not conflict with existing virtual services).
+
+          IMPORTANT:
+          The Virtualize MCP tools for creating virtual services require a deployment port. If 
+          a high confidence port number cannot be inferred from the Jira story, use 38000 as
+          a reasonable default starting point. List existing services on the Virtualize server, collect 
+          currently occupied ports, and then choose the first free port starting from 38000 
+          (or starting from the port inferred from the Jira story). Do not re-use ports that are
+          already in use by other virtual services on the Virtualize server.
 
           IMPORTANT:
           The Virtualize MCP tools for creating virtual services require a deployment parameter.
@@ -159,17 +167,10 @@ jobs:
           is simulating. It is often used to segment virtual services by team, project, client 
           application, or any other logical grouping. If a high confidence value for the 
           deployment parameter cannot be inferred from the Jira story, use the name of this 
-          repository as a reasonable default. If existing virtual serivces on the Virtualize server
+          repository as a reasonable default. If existing virtual services on the Virtualize server
           are already using that deployment parameter, choose a unique value (e.g., by appending
           -1, -2, etc. to the deployment parameter value so that it is unique and will not conflict
           with existing virtual services).
-
-          IMPORTANT:
-          The Virtualize MCP tools for creating virtual services require a deployment port. If 
-          a high confidence port number cannot be inferred from the Jira story, use 38000 as
-          a reasonable default. List existing services on the Virtualize server, collect 
-          occupied ports, then choose the first free port starting from 38000 (or starting from
-          the port inferred from the Jira story).
 
           Your task:
           1. Use the jira-remote MCP tools to read the Jira user story for the ticket above.
