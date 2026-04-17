@@ -159,6 +159,12 @@ jobs:
           a high confidence port number cannot be inferred from the Jira story, use 38000 as
           a reasonable default.
 
+          IMPORTANT:
+          If the Virtualize MCP tools for creating virtual services report that the virtual service
+          name or deployment port are already in use, instruct the tools with unique values so that
+          a new virtual service will be created successfully. Do not accept that a virtual service
+          already exists as a valid outcome for this task.
+
           Your task:
           1. Use the jira-remote MCP tools to read the Jira user story for the ticket above.
           2. Analyze the story to extract all virtual service requirements: endpoint path,
