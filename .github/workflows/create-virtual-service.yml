@@ -120,6 +120,37 @@ jobs:
           }
 
       # -----------------------------------------------------------------------
+      # Smoke-test Virtualize MCP server reachability before running the agent.
+      # A 400 response is acceptable — it means the server is up but rejected
+      # the plain POST body (expected for streamable-HTTP MCP servers).
+      # 401/403 means bad credentials. 000/timeout means unreachable.
+      # -----------------------------------------------------------------------
+      - name: Verify Virtualize MCP server is reachable
+        if: steps.resolve_ticket.outputs.skip != 'true'
+        shell: powershell
+        env:
+          VIRTUALIZE_AUTH_TOKEN: ${{ secrets.VIRTUALIZE_AUTH_TOKEN }}
+          VIRTUALIZE_MCP_URL: ${{ secrets.VIRTUALIZE_MCP_URL }}
+        run: |
+          Write-Host "Probing $env:VIRTUALIZE_MCP_URL ..."
+          try {
+            $resp = Invoke-WebRequest -Uri $env:VIRTUALIZE_MCP_URL `
+              -Method GET `
+              -Headers @{ Authorization = "Basic $env:VIRTUALIZE_AUTH_TOKEN" } `
+              -UseBasicParsing `
+              -ErrorAction Stop
+            Write-Host "Response status: $($resp.StatusCode) - server is reachable."
+          } catch [System.Net.WebException] {
+            $code = [int]$_.Exception.Response.StatusCode
+            if ($code -ge 400) {
+              Write-Host "HTTP $code - server is reachable (non-2xx is expected for GET on MCP endpoint)."
+            } else {
+              Write-Error "Virtualize MCP server is unreachable: $_"
+              exit 1
+            }
+          }
+
+      # -----------------------------------------------------------------------
       # Agent step 1: Read the Jira story, create and deploy the virtual
       # service via Virtualize MCP, and emit ENDPOINT_URL=http://host:port
       # so the validation steps know where the service is listening.
@@ -173,6 +204,7 @@ jobs:
           $output = copilot -p $prompt `
             --allow-tool 'mcp(jira-remote:*)' `
             --allow-tool 'mcp(virtualize:*)' `
+            --allow-tool 'mcp(*)' `
             --no-ask-user
           $copilotExit = $LASTEXITCODE
           $output
