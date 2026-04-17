@@ -162,10 +162,11 @@ jobs:
             Virtualize write or deploy tools.
           - Always confirm successful deployment before finishing.
           "@
+          $ErrorActionPreference = 'Continue'
           $output = copilot -p $prompt `
             --allow-tool 'mcp(jira-remote:*)' `
             --allow-tool 'mcp(virtualize:manageVirtualServices)' `
-            --no-ask-user 2>&1
+            --no-ask-user
           $copilotExit = $LASTEXITCODE
           $output
           if ($copilotExit -ne 0) {
@@ -224,9 +225,10 @@ jobs:
           - Output the TEST_* lines as the very last lines of your response with no trailing text.
           - Do not call any Virtualize MCP tools in this step.
           "@
+          $ErrorActionPreference = 'Continue'
           $output = copilot -p $prompt `
             --allow-tool 'mcp(jira-remote:*)' `
-            --no-ask-user 2>&1
+            --no-ask-user
           $copilotExit = $LASTEXITCODE
           $output
           if ($copilotExit -ne 0) {
