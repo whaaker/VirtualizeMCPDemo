@@ -122,7 +122,8 @@ jobs:
       # -----------------------------------------------------------------------
       # Write the Virtualize TLS certificate so Node.js (Copilot CLI) trusts it.
       # VIRTUALIZE_TLS_CERT is the base64-encoded DER certificate exported from
-      # the Virtualize HTTPS endpoint.
+      # the Virtualize HTTPS endpoint. Node.js requires PEM format, so we wrap
+      # the base64 in PEM headers rather than decoding to binary DER.
       # -----------------------------------------------------------------------
       - name: Write Virtualize TLS certificate
         id: write_virtualize_cert
@@ -133,10 +134,12 @@ jobs:
         run: |
           $certDir = "$env:TEMP\virtualize-certs"
           New-Item -ItemType Directory -Force -Path $certDir | Out-Null
-          $certBytes = [Convert]::FromBase64String($env:VIRTUALIZE_TLS_CERT)
-          [IO.File]::WriteAllBytes("$certDir\virtualize.cer", $certBytes)
-          Write-Host "Virtualize TLS cert written to $certDir\virtualize.cer"
-          "VIRTUALIZE_CERT_PATH=$certDir\virtualize.cer" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          $pemPath = "$certDir\virtualize.pem"
+          "-----BEGIN CERTIFICATE-----" | Set-Content $pemPath -Encoding ascii
+          $env:VIRTUALIZE_TLS_CERT | Add-Content $pemPath -Encoding ascii
+          "-----END CERTIFICATE-----" | Add-Content $pemPath -Encoding ascii
+          Write-Host "Virtualize TLS cert written as PEM to $pemPath"
+          "VIRTUALIZE_CERT_PATH=$pemPath" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
 
       # -----------------------------------------------------------------------
       # Smoke-test Virtualize MCP server reachability before running the agent.
