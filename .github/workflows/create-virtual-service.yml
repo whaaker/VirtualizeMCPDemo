@@ -166,7 +166,7 @@ jobs:
           $ErrorActionPreference = 'Continue'
           $output = copilot -p $prompt `
             --allow-tool 'mcp(jira-remote:*)' `
-            --allow-tool 'mcp(virtualize:manageVirtualServices)' `
+            --allow-tool 'mcp(virtualize:*)' `
             --no-ask-user
           $copilotExit = $LASTEXITCODE
           $output
