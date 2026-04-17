@@ -171,10 +171,30 @@ jobs:
           3. Use the virtualize MCP tools to create and deploy a virtual service that
              satisfies the requirements found in the story.
              - If creating multiple request-response interactions, download the files after
-               the initial virtual asset creation and follow the readme and examples to enrich
-               the virtual service with the additional interactions. Always include a catch-all 
-               `200` response for requests whose values deviate from any example data found in 
-               the Jira story.
+               the initial virtual asset creation and follow the readme to enrich the virtual 
+               service with the additional interactions. 
+             - For request correlation: The HTTP method, URL path, and URL query parameters 
+               from the first line will be considered for correlation. The request body specified 
+               after the headers will also be considered. Headers specified in the file are not 
+               used for correlation.  
+             - For path matching, an incoming request can have any number of additional URL path 
+               segments prepended, but the last path segments must match those specified in the 
+               request file. In the event that multiple matches are found, the one with the most 
+               matching segments is selected. If multiple files are found with the same number of 
+               matching segments, the one whose filename comes first alphabetically is used.
+             - Wildcard matches are supported on the following parts of the request (exact matches 
+               will be preferred over wildcard matches):
+                - URL path: Use * or {parameterName} in a path segment to match any value in it to 
+                  the incoming request. Note that the actual text in parameterName doesn't matter, 
+                  so you can use anything that helps you identify the parameter.
+                - URL query parameter: Use {*} as the query string (for example, 
+                  POST /parabank/services/bank/billpay?{*}) to match any query value to the incoming 
+                  request.
+                - Payload: Use {*} as the entire payload to match any payload to the incoming request.
+                - There is no regular expression support, you can either wildcard as described here, 
+                  or create separate request/response file pairs for exact match interactions.
+               - Include a catch-all `200` response for requests whose values deviate from any example
+                 data found in the Jira story.
           5. Report a concise summary of what was created (service name, endpoint, port).
           6. At the very end of your response output these lines in this exact format:
              TEST_METHOD=POST
