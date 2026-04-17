@@ -14,7 +14,7 @@ Virtualize MCP Server.
 1. In your GitHub repository go to **Settings → Actions → Runners → New self-hosted runner**.
 2. Select the OS of the machine running Virtualize, then follow the
    on-screen installation commands.
-3. Start the runner service (`./run.sh` or install as a service with `./svc.sh install && ./svc.sh start`).
+3. Start the runner service (`./run.sh` on Linux/macOS, or install as a Windows service with `.\svc.cmd install` then `.\svc.cmd start`).
 4. Verify it appears as **Idle** in the Runners list.
 
 > **Tip:** assign a custom label (e.g. `virtualize-host`) to the runner
@@ -26,7 +26,7 @@ Virtualize MCP Server.
 
 | Tool | Minimum version | Install guide |
 |------|----------------|---------------|
-| Node.js | 20 LTS | <https://nodejs.org> |
+| Node.js | 22 LTS | <https://nodejs.org> |
 | npm | 10+ | Bundled with Node.js |
 
 The workflow installs GitHub Copilot CLI automatically via `npm install -g @github/copilot`.
@@ -42,8 +42,8 @@ the built-in MCP Server. In general:
 1. Open Virtualize and navigate to the MCP Server settings.
 2. Start the server and note its HTTP endpoint URL.
 3. Confirm it is reachable from the runner machine:
-   ```bash
-   curl http://localhost:9080/soavirt/mcp
+   ```powershell
+   curl.exe http://localhost:9080/soavirt/mcp
    ```
 4. Set the `VIRTUALIZE_MCP_URL` secret to that full URL.
 
@@ -77,21 +77,19 @@ npm install -g @github/copilot
 $atlassianAuth = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes("email@example.com:api-token"))
 $virtAuth      = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes("user:password"))
 
-mkdir ~/.copilot -Force
+New-Item -ItemType Directory -Force -Path ~/.copilot | Out-Null
 @"
 {
   "mcpServers": {
     "jira-remote": {
       "type": "http",
       "url": "https://mcp.atlassian.com/v1/mcp",
-      "headers": { "Authorization": "Basic $atlassianAuth" },
-      "tools": ["*"]
+      "headers": { "Authorization": "Basic $atlassianAuth" }
     },
     "virtualize": {
       "type": "http",
       "url": "http://localhost:9080/soavirt/mcp",
-      "headers": { "Authorization": "Basic $virtAuth" },
-      "tools": ["*"]
+      "headers": { "Authorization": "Basic $virtAuth" }
     }
   }
 }
@@ -100,8 +98,13 @@ mkdir ~/.copilot -Force
 # Run the agent
 $env:COPILOT_GITHUB_TOKEN = "<your-PAT>"
 copilot -p "Jira ticket: PROJ-123. Read the story and create the virtual service it describes." `
-  --allow-tool='mcp(*)' --no-ask-user
+  --yolo --no-ask-user
 ```
+
+> **Note on `--yolo`:** This flag enables all tool permissions. It is required
+> as a workaround for a [known Copilot CLI bug](https://github.com/github/copilot-cli/issues/1592)
+> where `--allow-tool` does not work in `--prompt` / `-p` mode. Once that bug
+> is fixed, replace `--yolo` with `--allow-tool='jira-remote' --allow-tool='virtualize'`.
 
 ---
 
@@ -110,8 +113,7 @@ copilot -p "Jira ticket: PROJ-123. Read the story and create the virtual service
 1. Go to **Actions → Create Virtual Service from Jira Story**.
 2. Click **Run workflow**.
 3. Enter the Jira ticket number (e.g. `PROJ-123`).
-4. Optionally override the Virtualize server URL or enable **dry run** mode.
+4. Optionally enable **dry run** mode to plan without deploying.
 5. Click **Run workflow** to start.
 
-The agent log and a JSON summary are available as a downloadable artifact
-once the run completes.
+The agent log is available in the workflow run's step output once the run completes.
