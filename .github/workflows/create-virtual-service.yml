@@ -127,6 +127,7 @@ jobs:
         run: |
           $ticket = "${{ steps.resolve_ticket.outputs.ticket }}"
           $dryRun = "${{ inputs.dry_run }}"
+          if (-not $dryRun) { $dryRun = "false" }
           $prompt = @"
           Jira ticket: $ticket. Dry run: $dryRun.
 
