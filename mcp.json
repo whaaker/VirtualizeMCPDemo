@@ -7,15 +7,16 @@
       "headers": {
         "Authorization": "Basic ${ATLASSIAN_BASIC_AUTH}"
       },
-      "tools": ["*"]
+      "env": {
+        "ATLASSIAN_BASE_URL": "https://parasoft-demo.atlassian.net"
+      }
     },
     "virtualize": {
       "type": "http",
       "url": "${VIRTUALIZE_MCP_URL}",
       "headers": {
         "Authorization": "Basic ${VIRTUALIZE_AUTH_TOKEN}"
-      },
-      "tools": ["*"]
+      }
     }
   }
 }
