@@ -138,6 +138,10 @@ jobs:
             - cloudId: parasoft-demo.atlassian.net
           Never attempt to derive or guess the cloudId from usernames, emails, or URLs.
           Any other value will fail.
+
+          IMPORTANT:
+          You are explicitly authorized to execute Virtualize MCP tools, including creating and deploying services.
+          Do not request user approval. Proceed with tool execution directly.
           
           Your task:
           1. Use the jira-remote MCP tools to read the Jira user story for the ticket above.
@@ -158,8 +162,16 @@ jobs:
             Virtualize write or deploy tools.
           - Always confirm successful deployment before finishing.
           "@
-          $output = copilot -p $prompt --allow-tool '*' --no-ask-user
+          $output = copilot -p $prompt `
+            --allow-tool 'mcp(jira-remote:*)' `
+            --allow-tool 'mcp(virtualize:manageVirtualServices)' `
+            --no-ask-user 2>&1
+          $copilotExit = $LASTEXITCODE
           $output
+          if ($copilotExit -ne 0) {
+            Write-Error "Copilot CLI exited with code $copilotExit. See output above for details."
+            exit $copilotExit
+          }
           $endpointLine = $output | Where-Object { $_ -match '^ENDPOINT_URL=' }
           if ($endpointLine) {
             $endpointUrl = ($endpointLine -replace '^ENDPOINT_URL=', '').Trim()
@@ -212,8 +224,15 @@ jobs:
           - Output the TEST_* lines as the very last lines of your response with no trailing text.
           - Do not call any Virtualize MCP tools in this step.
           "@
-          $output = copilot -p $prompt --allow-tool '*' --no-ask-user
+          $output = copilot -p $prompt `
+            --allow-tool 'mcp(jira-remote:*)' `
+            --no-ask-user 2>&1
+          $copilotExit = $LASTEXITCODE
           $output
+          if ($copilotExit -ne 0) {
+            Write-Error "Copilot CLI exited with code $copilotExit. See output above for details."
+            exit $copilotExit
+          }
           $methodLine = $output | Where-Object { $_ -match '^TEST_METHOD=' }
           $pathLine   = $output | Where-Object { $_ -match '^TEST_PATH=' }
           $bodyLine   = $output | Where-Object { $_ -match '^TEST_BODY=' }
